@@ -1,118 +1,118 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
-import './App.css'
+import { useState } from "react";
+import type { ReactNode } from "react";
+import "./App.css";
 
 type CashEntry = {
-  id: string
-  note: string
-  amount: string
-}
+  id: string;
+  note: string;
+  amount: string;
+};
 
 type PortfolioFields = {
-  usdAmount: string
-  usdRate: string
-  goldGrams: string
-  goldPricePerGram: string
-  stocksValue: string
-  cashEntries: CashEntry[]
-  bankCertificates: string
-}
+  usdAmount: string;
+  usdRate: string;
+  goldGrams: string;
+  goldPricePerGram: string;
+  stocksValue: string;
+  cashEntries: CashEntry[];
+  bankCertificates: string;
+};
 
 type PortfolioSnapshot = {
-  values: PortfolioFields
-  updatedAt: string | null
-}
+  values: PortfolioFields;
+  updatedAt: string | null;
+};
 
-type HoldingTone = 'dollar' | 'gold' | 'stocks' | 'cash' | 'certificate'
+type HoldingTone = "dollar" | "gold" | "stocks" | "cash" | "certificate";
 
 type HoldingSummary = {
-  key: HoldingTone
-  label: string
-  note: string
-  value: number
-}
+  key: HoldingTone;
+  label: string;
+  note: string;
+  value: number;
+};
 
-const STORAGE_KEY = 'portfolio-calculator.snapshot.v1'
+const STORAGE_KEY = "portfolio-calculator.snapshot.v1";
 
 const defaultPortfolio: PortfolioFields = {
-  usdAmount: '',
-  usdRate: '',
-  goldGrams: '',
-  goldPricePerGram: '',
-  stocksValue: '',
+  usdAmount: "",
+  usdRate: "",
+  goldGrams: "",
+  goldPricePerGram: "",
+  stocksValue: "",
   cashEntries: [],
-  bankCertificates: '',
-}
+  bankCertificates: "",
+};
 
-const currencyFormatter = new Intl.NumberFormat('en-EG', {
-  style: 'currency',
-  currency: 'EGP',
+const currencyFormatter = new Intl.NumberFormat("en-EG", {
+  style: "currency",
+  currency: "EGP",
   maximumFractionDigits: 0,
-})
+});
 
-const decimalFormatter = new Intl.NumberFormat('en-EG', {
+const decimalFormatter = new Intl.NumberFormat("en-EG", {
   maximumFractionDigits: 2,
-})
+});
 
-const dateFormatter = new Intl.DateTimeFormat('en-EG', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+const dateFormatter = new Intl.DateTimeFormat("en-EG", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 
 function sanitizeField(value: unknown) {
-  return typeof value === 'string' ? value : ''
+  return typeof value === "string" ? value : "";
 }
 
 function createCashEntry(): CashEntry {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return {
       id: crypto.randomUUID(),
-      note: '',
-      amount: '',
-    }
+      note: "",
+      amount: "",
+    };
   }
 
   return {
     id: `cash-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    note: '',
-    amount: '',
-  }
+    note: "",
+    amount: "",
+  };
 }
 
 function sanitizeCashEntry(value: unknown): CashEntry | null {
-  if (!value || typeof value !== 'object') {
-    return null
+  if (!value || typeof value !== "object") {
+    return null;
   }
 
-  const entry = value as Partial<CashEntry>
+  const entry = value as Partial<CashEntry>;
 
   return {
     id: sanitizeField(entry.id) || createCashEntry().id,
     note: sanitizeField(entry.note),
     amount: sanitizeField(entry.amount),
-  }
+  };
 }
 
 function hasCashEntryContent(entry: CashEntry) {
-  return entry.note.trim() !== '' || entry.amount.trim() !== ''
+  return entry.note.trim() !== "" || entry.amount.trim() !== "";
 }
 
 function sanitizeCashEntries(value: unknown, keepEmpty: boolean) {
   if (!Array.isArray(value)) {
-    return []
+    return [];
   }
 
   return value
     .map((entry) => sanitizeCashEntry(entry))
     .filter((entry): entry is CashEntry => entry !== null)
-    .filter((entry) => keepEmpty || hasCashEntryContent(entry))
+    .filter((entry) => keepEmpty || hasCashEntryContent(entry));
 }
 
 function sanitizePortfolio(
   values?: (Partial<PortfolioFields> & { cash?: unknown }) | null,
   keepEmptyCashEntries = true,
 ): PortfolioFields {
-  const legacyCash = sanitizeField(values?.cash)
+  const legacyCash = sanitizeField(values?.cash);
   const cashEntries = Array.isArray(values?.cashEntries)
     ? sanitizeCashEntries(values?.cashEntries, keepEmptyCashEntries)
     : legacyCash.trim()
@@ -122,7 +122,7 @@ function sanitizePortfolio(
             amount: legacyCash,
           },
         ]
-      : []
+      : [];
 
   return {
     usdAmount: sanitizeField(values?.usdAmount),
@@ -132,138 +132,130 @@ function sanitizePortfolio(
     stocksValue: sanitizeField(values?.stocksValue),
     cashEntries,
     bankCertificates: sanitizeField(values?.bankCertificates),
-  }
+  };
 }
 
 function loadSnapshot(): PortfolioSnapshot | null {
-  if (typeof window === 'undefined') {
-    return null
+  if (typeof window === "undefined") {
+    return null;
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY)
+  const raw = window.localStorage.getItem(STORAGE_KEY);
 
   if (!raw) {
-    return null
+    return null;
   }
 
   try {
-    const parsed = JSON.parse(raw) as Partial<PortfolioSnapshot>
+    const parsed = JSON.parse(raw) as Partial<PortfolioSnapshot>;
 
     return {
       values: sanitizePortfolio(parsed.values),
-      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : null,
-    }
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
+    };
   } catch {
-    return null
+    return null;
   }
 }
 
 function persistSnapshot(snapshot: PortfolioSnapshot) {
-  if (typeof window === 'undefined') {
-    return
+  if (typeof window === "undefined") {
+    return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 }
 
 function parseAmount(value: string) {
-  const normalized = value.replace(/,/g, '').trim()
+  const normalized = value.replace(/,/g, "").trim();
 
   if (!normalized) {
-    return 0
+    return 0;
   }
 
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : 0
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function roundAmount(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function formatCurrency(value: number) {
-  return currencyFormatter.format(value)
+  return currencyFormatter.format(value);
 }
 
 function formatDecimal(value: number) {
-  return decimalFormatter.format(value)
+  return decimalFormatter.format(value);
 }
 
 function formatSavedAt(value: string | null) {
   if (!value) {
-    return 'No saved snapshot yet'
+    return "No saved snapshot yet";
   }
 
-  return dateFormatter.format(new Date(value))
+  return dateFormatter.format(new Date(value));
 }
 
 function hasUnsavedChanges(draft: PortfolioFields, saved: PortfolioFields) {
-  return JSON.stringify(sanitizePortfolio(draft, false)) !== JSON.stringify(sanitizePortfolio(saved, false))
+  return JSON.stringify(sanitizePortfolio(draft, false)) !== JSON.stringify(sanitizePortfolio(saved, false));
 }
 
 function calculatePortfolio(values: PortfolioFields) {
-  const usdAmount = parseAmount(values.usdAmount)
-  const usdRate = parseAmount(values.usdRate)
-  const goldGrams = parseAmount(values.goldGrams)
-  const goldPricePerGram = parseAmount(values.goldPricePerGram)
-  const stocksValue = parseAmount(values.stocksValue)
-  const cashEntries = sanitizeCashEntries(values.cashEntries, false)
-  const cash = roundAmount(
-    cashEntries.reduce((total, entry) => total + parseAmount(entry.amount), 0),
-  )
-  const bankCertificates = parseAmount(values.bankCertificates)
+  const usdAmount = parseAmount(values.usdAmount);
+  const usdRate = parseAmount(values.usdRate);
+  const goldGrams = parseAmount(values.goldGrams);
+  const goldPricePerGram = parseAmount(values.goldPricePerGram);
+  const stocksValue = parseAmount(values.stocksValue);
+  const cashEntries = sanitizeCashEntries(values.cashEntries, false);
+  const cash = roundAmount(cashEntries.reduce((total, entry) => total + parseAmount(entry.amount), 0));
+  const bankCertificates = parseAmount(values.bankCertificates);
 
-  const dollarTotal = roundAmount(usdAmount * usdRate)
-  const goldTotal = roundAmount(goldGrams * goldPricePerGram)
-  const total = roundAmount(
-    dollarTotal + goldTotal + stocksValue + cash + bankCertificates,
-  )
+  const dollarTotal = roundAmount(usdAmount * usdRate);
+  const goldTotal = roundAmount(goldGrams * goldPricePerGram);
+  const total = roundAmount(dollarTotal + goldTotal + stocksValue + cash + bankCertificates);
 
   const holdings: HoldingSummary[] = [
     {
-      key: 'dollar',
-      label: 'Dollar balance',
-      note: usdAmount > 0 ? `${formatDecimal(usdAmount)} USD` : 'No dollars entered',
+      key: "dollar",
+      label: "Dollar balance",
+      note: usdAmount > 0 ? `${formatDecimal(usdAmount)} USD` : "No dollars entered",
       value: dollarTotal,
     },
     {
-      key: 'gold',
-      label: 'Gold reserve',
-      note:
-        goldGrams > 0 ? `${formatDecimal(goldGrams)} grams tracked` : 'No gold entered',
+      key: "gold",
+      label: "Gold reserve",
+      note: goldGrams > 0 ? `${formatDecimal(goldGrams)} grams tracked` : "No gold entered",
       value: goldTotal,
     },
     {
-      key: 'stocks',
-      label: 'Stocks',
-      note: stocksValue > 0 ? 'Entered directly in EGP' : 'No stock value entered',
+      key: "stocks",
+      label: "Stocks",
+      note: stocksValue > 0 ? "Entered directly in EGP" : "No stock value entered",
       value: stocksValue,
     },
     {
-      key: 'cash',
-      label: 'Cash',
+      key: "cash",
+      label: "Cash",
       note:
         cashEntries.length > 0
-          ? `${cashEntries.length} cash ${cashEntries.length === 1 ? 'line' : 'lines'} tracked`
-          : 'No cash entries entered',
+          ? `${cashEntries.length} cash ${cashEntries.length === 1 ? "line" : "lines"} tracked`
+          : "No cash entries entered",
       value: cash,
     },
     {
-      key: 'certificate',
-      label: 'Bank certificates',
-      note:
-        bankCertificates > 0
-          ? 'Entered directly in EGP'
-          : 'No certificate value entered',
+      key: "certificate",
+      label: "Bank certificates",
+      note: bankCertificates > 0 ? "Entered directly in EGP" : "No certificate value entered",
       value: bankCertificates,
     },
-  ]
+  ];
 
-  const sortedHoldings = [...holdings].sort((left, right) => right.value - left.value)
-  const largestHolding = sortedHoldings.find((item) => item.value > 0) ?? null
-  const liquidValue = roundAmount(dollarTotal + cash)
-  const defensiveValue = roundAmount(goldTotal + bankCertificates)
-  const growthValue = roundAmount(stocksValue)
+  const sortedHoldings = [...holdings].sort((left, right) => right.value - left.value);
+  const largestHolding = sortedHoldings.find((item) => item.value > 0) ?? null;
+  const liquidValue = roundAmount(dollarTotal + cash);
+  const defensiveValue = roundAmount(goldTotal + bankCertificates);
+  const growthValue = roundAmount(stocksValue);
 
   return {
     usdAmount,
@@ -284,24 +276,19 @@ function calculatePortfolio(values: PortfolioFields) {
     liquidValue,
     defensiveValue,
     growthValue,
-  }
+  };
 }
 
 type InputFieldProps = {
-  label: string
-  suffix: string
-  step?: string
-  value: string
-  onChange: (value: string) => void
-}
+  label: string;
+  suffix: string;
+  step?: string;
+  value: string;
+  onChange: (value: string) => void;
+  [key: string]: unknown;
+};
 
-function InputField({
-  label,
-  suffix,
-  step = '0.01',
-  value,
-  onChange,
-}: InputFieldProps) {
+function InputField({ label, suffix, step = "0.01", value, onChange, ...props }: InputFieldProps) {
   return (
     <label className="input-field">
       <span>{label}</span>
@@ -314,17 +301,18 @@ function InputField({
           placeholder="0"
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          {...props}
         />
         <small>{suffix}</small>
       </div>
     </label>
-  )
+  );
 }
 
 type ReadoutProps = {
-  label: string
-  value: string
-}
+  label: string;
+  value: string;
+};
 
 function Readout({ label, value }: ReadoutProps) {
   return (
@@ -332,44 +320,32 @@ function Readout({ label, value }: ReadoutProps) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
-  )
+  );
 }
 
 type CurrencyValueProps = {
-  className?: string
-  value: number
-}
+  className?: string;
+  value: number;
+};
 
 function CurrencyValue({ className, value }: CurrencyValueProps) {
-  return <span className={className}>{formatCurrency(value)}</span>
+  return <span className={className}>{formatCurrency(value)}</span>;
 }
 
 type HoldingCardProps = {
-  tone: HoldingTone
-  title: string
-  hint: string
-  total: number
-  totalLabel: string
-  badge: string
-  delay: number
-  children: ReactNode
-}
+  tone: HoldingTone;
+  title: string;
+  hint: string;
+  total: number;
+  totalLabel: string;
+  badge: string;
+  delay: number;
+  children: ReactNode;
+};
 
-function HoldingCard({
-  tone,
-  title,
-  hint,
-  total,
-  totalLabel,
-  badge,
-  delay,
-  children,
-}: HoldingCardProps) {
+function HoldingCard({ tone, title, hint, total, totalLabel, badge, delay, children }: HoldingCardProps) {
   return (
-    <article
-      className={`holding-card holding-card--${tone}`}
-      style={{ animationDelay: `${delay}ms` }}
-    >
+    <article className={`holding-card holding-card--${tone}`} style={{ animationDelay: `${delay}ms` }}>
       <header className="holding-card__header">
         <div>
           <span className="holding-card__kicker">{badge}</span>
@@ -387,85 +363,104 @@ function HoldingCard({
         <CurrencyValue className="holding-card__total" value={total} />
       </footer>
     </article>
-  )
+  );
 }
 
-const persistedSnapshot = loadSnapshot()
+const persistedSnapshot = loadSnapshot();
 const initialSnapshot = persistedSnapshot ?? {
   values: defaultPortfolio,
   updatedAt: null,
-}
+};
 
 function App() {
-  const [savedSnapshot, setSavedSnapshot] = useState<PortfolioSnapshot>(initialSnapshot)
-  const [draftValues, setDraftValues] = useState<PortfolioFields>(initialSnapshot.values)
-  const [isEditing, setIsEditing] = useState(persistedSnapshot === null)
+  const [savedSnapshot, setSavedSnapshot] = useState<PortfolioSnapshot>(initialSnapshot);
+  const [draftValues, setDraftValues] = useState<PortfolioFields>(initialSnapshot.values);
+  const [isEditing, setIsEditing] = useState(persistedSnapshot === null);
 
-  const activeValues = isEditing ? draftValues : savedSnapshot.values
-  const activePortfolio = calculatePortfolio(activeValues)
-  const unsavedChanges = hasUnsavedChanges(draftValues, savedSnapshot.values)
-  const totalValue = activePortfolio.total
-  const totalHoldings = activePortfolio.total || 1
+  const activeValues = isEditing ? draftValues : savedSnapshot.values;
+  const activePortfolio = calculatePortfolio(activeValues);
+  const unsavedChanges = hasUnsavedChanges(draftValues, savedSnapshot.values);
+  const totalValue = activePortfolio.total;
+  const totalHoldings = activePortfolio.total || 1;
 
   const updateField = (field: keyof PortfolioFields, value: string) => {
     setDraftValues((current) => ({
       ...current,
       [field]: value,
-    }))
-  }
+    }));
+  };
 
-  const updateCashEntry = (
-    entryId: string,
-    field: keyof Omit<CashEntry, 'id'>,
-    value: string,
-  ) => {
+  const updateCashEntry = (entryId: string, field: keyof Omit<CashEntry, "id">, value: string) => {
     setDraftValues((current) => ({
       ...current,
-      cashEntries: current.cashEntries.map((entry) =>
-        entry.id === entryId ? { ...entry, [field]: value } : entry,
-      ),
-    }))
-  }
+      cashEntries: current.cashEntries.map((entry) => (entry.id === entryId ? { ...entry, [field]: value } : entry)),
+    }));
+  };
 
   const addCashEntry = () => {
     setDraftValues((current) => ({
       ...current,
       cashEntries: [...current.cashEntries, createCashEntry()],
-    }))
-  }
+    }));
+  };
 
   const deleteCashEntry = (entryId: string) => {
     setDraftValues((current) => ({
       ...current,
       cashEntries: current.cashEntries.filter((entry) => entry.id !== entryId),
-    }))
-  }
+    }));
+  };
+
+  const moveCashEntry = (entryId: string, direction: "up" | "down") => {
+    setDraftValues((current) => {
+      const entryIndex = current.cashEntries.findIndex((entry) => entry.id === entryId);
+
+      if (entryIndex < 0) {
+        return current;
+      }
+
+      const targetIndex = direction === "up" ? entryIndex - 1 : entryIndex + 1;
+
+      if (targetIndex < 0 || targetIndex >= current.cashEntries.length) {
+        return current;
+      }
+
+      const nextEntries = [...current.cashEntries];
+      const [movedEntry] = nextEntries.splice(entryIndex, 1);
+      nextEntries.splice(targetIndex, 0, movedEntry);
+
+      return {
+        ...current,
+        cashEntries: nextEntries,
+      };
+    });
+  };
 
   const handleEdit = () => {
-    setDraftValues(sanitizePortfolio(savedSnapshot.values))
-    setIsEditing(true)
-  }
+    setDraftValues(sanitizePortfolio(savedSnapshot.values));
+    setIsEditing(true);
+  };
 
   const handleCancel = () => {
-    setDraftValues(sanitizePortfolio(savedSnapshot.values))
-    setIsEditing(false)
-  }
+    setDraftValues(sanitizePortfolio(savedSnapshot.values));
+    setIsEditing(false);
+  };
 
   const handleSave = () => {
     const snapshot: PortfolioSnapshot = {
       values: sanitizePortfolio(draftValues, false),
       updatedAt: new Date().toISOString(),
-    }
+    };
 
-    persistSnapshot(snapshot)
-    setSavedSnapshot(snapshot)
-    setDraftValues(snapshot.values)
-    setIsEditing(false)
-  }
+    persistSnapshot(snapshot);
+    setSavedSnapshot(snapshot);
+    setDraftValues(snapshot.values);
+    setIsEditing(false);
+  };
 
   const largestHoldingShare = activePortfolio.largestHolding
     ? (activePortfolio.largestHolding.value / totalHoldings) * 100
-    : 0
+    : 0;
 
   return (
     <div className="app-shell">
@@ -474,51 +469,37 @@ function App() {
           <p className="hero-copy__eyebrow">Personal portfolio calculator</p>
           <h1>Read every asset through one EGP lens.</h1>
           <p className="hero-copy__text">
-            Dollar and gold positions are converted live into Egyptian pounds,
-            while stocks, cash entries, and bank certificates stay as direct EGP
-            inputs. Save a clean snapshot locally on this device and jump between
-            view and edit whenever you need to update the portfolio.
+            Dollar and gold positions are converted live into Egyptian pounds, while stocks, cash entries, and bank
+            certificates stay as direct EGP inputs. Save a clean snapshot locally on this device and jump between view
+            and edit whenever you need to update the portfolio.
           </p>
 
           <div className="hero-copy__actions">
             {isEditing ? (
               <>
-                <button
-                  type="button"
-                  className="button button--ghost"
-                  onClick={handleCancel}
-                >
+                <button type="button" className="button button--ghost" onClick={handleCancel}>
                   Cancel draft
                 </button>
                 <button
                   type="button"
                   className="button button--primary"
                   onClick={handleSave}
-                  disabled={!unsavedChanges}
-                >
+                  disabled={!unsavedChanges}>
                   Save snapshot
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={handleEdit}
-              >
+              <button type="button" className="button button--primary" onClick={handleEdit}>
                 Edit portfolio
               </button>
             )}
           </div>
 
           <div className="hero-copy__status">
-            <span
-              className={`status-chip ${isEditing ? 'status-chip--editing' : 'status-chip--saved'}`}
-            >
-              {isEditing ? 'Editing draft' : 'Viewing saved snapshot'}
+            <span className={`status-chip ${isEditing ? "status-chip--editing" : "status-chip--saved"}`}>
+              {isEditing ? "Editing draft" : "Viewing saved snapshot"}
             </span>
-            <span className="status-chip status-chip--neutral">
-              Stored only in local browser storage
-            </span>
+            <span className="status-chip status-chip--neutral">Stored only in local browser storage</span>
           </div>
         </section>
 
@@ -526,8 +507,7 @@ function App() {
           <span className="hero-summary__label">Portfolio total</span>
           <CurrencyValue className="hero-summary__total" value={totalValue} />
           <p className="hero-summary__caption">
-            Every figure below is normalized to EGP, so the headline number stays
-            immediately comparable.
+            Every figure below is normalized to EGP, so the headline number stays immediately comparable.
           </p>
 
           <div className="hero-summary__grid">
@@ -559,8 +539,7 @@ function App() {
               <h2>Allocation inputs</h2>
             </div>
             <p className="panel-heading__text">
-              The summary updates live while you edit, but only the saved snapshot
-              stays after refresh.
+              The summary updates live while you edit, but only the saved snapshot stays after refresh.
             </p>
           </div>
 
@@ -572,33 +551,26 @@ function App() {
               total={activePortfolio.dollarTotal}
               totalLabel="Converted total"
               badge="FX hedge"
-              delay={80}
-            >
+              delay={80}>
               {isEditing ? (
                 <div className="input-grid">
                   <InputField
                     label="Dollar amount"
                     suffix="USD"
                     value={draftValues.usdAmount}
-                    onChange={(value) => updateField('usdAmount', value)}
+                    onChange={(value) => updateField("usdAmount", value)}
                   />
                   <InputField
                     label="EGP per dollar"
                     suffix="EGP"
                     value={draftValues.usdRate}
-                    onChange={(value) => updateField('usdRate', value)}
+                    onChange={(value) => updateField("usdRate", value)}
                   />
                 </div>
               ) : (
                 <div className="readout-list">
-                  <Readout
-                    label="Dollar amount"
-                    value={`${formatDecimal(activePortfolio.usdAmount)} USD`}
-                  />
-                  <Readout
-                    label="Exchange rate"
-                    value={`${formatDecimal(activePortfolio.usdRate)} EGP`}
-                  />
+                  <Readout label="Dollar amount" value={`${formatDecimal(activePortfolio.usdAmount)} USD`} />
+                  <Readout label="Exchange rate" value={`${formatDecimal(activePortfolio.usdRate)} EGP`} />
                 </div>
               )}
             </HoldingCard>
@@ -610,33 +582,26 @@ function App() {
               total={activePortfolio.goldTotal}
               totalLabel="Computed value"
               badge="Hard asset"
-              delay={140}
-            >
+              delay={140}>
               {isEditing ? (
                 <div className="input-grid">
                   <InputField
                     label="Gold weight"
                     suffix="grams"
                     value={draftValues.goldGrams}
-                    onChange={(value) => updateField('goldGrams', value)}
+                    onChange={(value) => updateField("goldGrams", value)}
                   />
                   <InputField
                     label="Price per gram"
                     suffix="EGP"
                     value={draftValues.goldPricePerGram}
-                    onChange={(value) => updateField('goldPricePerGram', value)}
+                    onChange={(value) => updateField("goldPricePerGram", value)}
                   />
                 </div>
               ) : (
                 <div className="readout-list">
-                  <Readout
-                    label="Gold weight"
-                    value={`${formatDecimal(activePortfolio.goldGrams)} grams`}
-                  />
-                  <Readout
-                    label="Price per gram"
-                    value={`${formatDecimal(activePortfolio.goldPricePerGram)} EGP`}
-                  />
+                  <Readout label="Gold weight" value={`${formatDecimal(activePortfolio.goldGrams)} grams`} />
+                  <Readout label="Price per gram" value={`${formatDecimal(activePortfolio.goldPricePerGram)} EGP`} />
                 </div>
               )}
             </HoldingCard>
@@ -648,23 +613,19 @@ function App() {
               total={activePortfolio.stocksValue}
               totalLabel="Entered total"
               badge="Growth"
-              delay={200}
-            >
+              delay={200}>
               {isEditing ? (
                 <div className="input-grid">
                   <InputField
                     label="Stocks value"
                     suffix="EGP"
                     value={draftValues.stocksValue}
-                    onChange={(value) => updateField('stocksValue', value)}
+                    onChange={(value) => updateField("stocksValue", value)}
                   />
                 </div>
               ) : (
                 <div className="readout-list">
-                  <Readout
-                    label="Stocks value"
-                    value={formatCurrency(activePortfolio.stocksValue)}
-                  />
+                  <Readout label="Stocks value" value={formatCurrency(activePortfolio.stocksValue)} />
                 </div>
               )}
             </HoldingCard>
@@ -676,23 +637,53 @@ function App() {
               total={activePortfolio.cash}
               totalLabel="Combined total"
               badge="Liquid"
-              delay={260}
-            >
+              delay={260}>
               {isEditing ? (
                 <div className="cash-entry-list">
                   {draftValues.cashEntries.length > 0 ? (
                     draftValues.cashEntries.map((entry, index) => (
                       <div className="cash-entry-row" key={entry.id}>
-                        <label className="input-field cash-entry-note">
+                        <div className="cash-entry-order">
+                          <span className="cash-entry-order__label">{`#${index + 1}`}</span>
+                          <div className="cash-entry-order__actions">
+                            <button
+                              type="button"
+                              className="icon-button icon-button--sort"
+                              onClick={() => moveCashEntry(entry.id, "up")}
+                              aria-label={`Move cash line ${index + 1} up`}
+                              disabled={index === 0}>
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="M12 5.5 5.5 12l1.4 1.4 4.1-4.1V20h2V9.3l4.1 4.1 1.4-1.4L12 5.5Z"
+                                  fill="currentColor"
+                                />
+                              </svg>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="icon-button icon-button--sort"
+                              onClick={() => moveCashEntry(entry.id, "down")}
+                              aria-label={`Move cash line ${index + 1} down`}
+                              disabled={index === draftValues.cashEntries.length - 1}>
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                  d="m12 18.5 6.5-6.5-1.4-1.4-4.1 4.1V4h-2v10.7l-4.1-4.1L5.5 12 12 18.5Z"
+                                  fill="currentColor"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        <label className="input-field cash-entry-note" style={{ width: 200 }}>
                           <span>{`Note ${index + 1}`}</span>
                           <div className="input-shell">
                             <input
                               type="text"
                               placeholder="Wallet, drawer, account..."
                               value={entry.note}
-                              onChange={(event) =>
-                                updateCashEntry(entry.id, 'note', event.target.value)
-                              }
+                              onChange={(event) => updateCashEntry(entry.id, "note", event.target.value)}
                             />
                           </div>
                         </label>
@@ -701,15 +692,15 @@ function App() {
                           label="Amount"
                           suffix="EGP"
                           value={entry.amount}
-                          onChange={(value) => updateCashEntry(entry.id, 'amount', value)}
+                          onChange={(value) => updateCashEntry(entry.id, "amount", value)}
+                          style={{ flex: 1 }}
                         />
 
                         <button
                           type="button"
                           className="icon-button"
                           onClick={() => deleteCashEntry(entry.id)}
-                          aria-label={`Delete cash line ${index + 1}`}
-                        >
+                          aria-label={`Delete cash line ${index + 1}`}>
                           <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path
                               d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 7h2v7h-2v-7Zm4 0h2v7h-2v-7ZM7 10h2v7H7v-7Zm1 10h8a2 2 0 0 0 2-2V8H6v10a2 2 0 0 0 2 2Z"
@@ -725,11 +716,7 @@ function App() {
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    className="button button--ghost button--add-row"
-                    onClick={addCashEntry}
-                  >
+                  <button type="button" className="button button--ghost button--add-row" onClick={addCashEntry}>
                     Add cash line
                   </button>
                 </div>
@@ -759,23 +746,19 @@ function App() {
               total={activePortfolio.bankCertificates}
               totalLabel="Entered total"
               badge="Income"
-              delay={320}
-            >
+              delay={320}>
               {isEditing ? (
                 <div className="input-grid">
                   <InputField
                     label="Certificates value"
                     suffix="EGP"
                     value={draftValues.bankCertificates}
-                    onChange={(value) => updateField('bankCertificates', value)}
+                    onChange={(value) => updateField("bankCertificates", value)}
                   />
                 </div>
               ) : (
                 <div className="readout-list">
-                  <Readout
-                    label="Certificates value"
-                    value={formatCurrency(activePortfolio.bankCertificates)}
-                  />
+                  <Readout label="Certificates value" value={formatCurrency(activePortfolio.bankCertificates)} />
                 </div>
               )}
             </HoldingCard>
@@ -790,8 +773,7 @@ function App() {
                 <h2>Allocation map</h2>
               </div>
               <p className="panel-heading__text">
-                Your portfolio split updates from the current saved view or live
-                draft, depending on the mode.
+                Your portfolio split updates from the current saved view or live draft, depending on the mode.
               </p>
             </div>
 
@@ -809,13 +791,11 @@ function App() {
 
                 <div className="allocation-list">
                   {activePortfolio.sortedHoldings.map((item) => {
-                    const share = (item.value / totalHoldings) * 100
+                    const share = (item.value / totalHoldings) * 100;
 
                     return (
                       <div className="allocation-item" key={item.key}>
-                        <span
-                          className={`allocation-item__dot allocation-item__dot--${item.key}`}
-                        />
+                        <span className={`allocation-item__dot allocation-item__dot--${item.key}`} />
                         <div>
                           <strong>{item.label}</strong>
                           <p>{item.note}</p>
@@ -825,14 +805,12 @@ function App() {
                           <span>{share.toFixed(1)}%</span>
                         </div>
                       </div>
-                    )
+                    );
                   })}
                 </div>
               </>
             ) : (
-              <div className="empty-state">
-                Add any holding to see the portfolio split and allocation signals.
-              </div>
+              <div className="empty-state">Add any holding to see the portfolio split and allocation signals.</div>
             )}
           </section>
 
@@ -842,9 +820,7 @@ function App() {
                 <p className="panel-heading__eyebrow">Signals</p>
                 <h2>Quick read</h2>
               </div>
-              <p className="panel-heading__text">
-                A compact summary for liquidity, defense, and concentration.
-              </p>
+              <p className="panel-heading__text">A compact summary for liquidity, defense, and concentration.</p>
             </div>
 
             <div className="signal-grid">
@@ -869,14 +845,12 @@ function App() {
               <article className="signal-card">
                 <span>Largest line</span>
                 <strong>
-                  {activePortfolio.largestHolding
-                    ? activePortfolio.largestHolding.label
-                    : 'No allocation yet'}
+                  {activePortfolio.largestHolding ? activePortfolio.largestHolding.label : "No allocation yet"}
                 </strong>
                 <p>
                   {activePortfolio.largestHolding
                     ? `${largestHoldingShare.toFixed(1)}% of the portfolio`
-                    : 'Save or enter values to compute the leading allocation.'}
+                    : "Save or enter values to compute the leading allocation."}
                 </p>
               </article>
             </div>
@@ -884,7 +858,7 @@ function App() {
         </aside>
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
