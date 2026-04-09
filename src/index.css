@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+
+:root {
+  --page-bg: #efe4cf;
+  --panel: rgba(255, 252, 246, 0.72);
+  --line: rgba(16, 35, 28, 0.11);
+  --ink: #10231c;
+  --muted: #5b6b60;
+  --muted-strong: #415248;
+  --shadow-soft: 0 28px 60px rgba(17, 37, 29, 0.12);
+  --shadow-strong: 0 18px 40px rgba(18, 37, 29, 0.22);
+  --radius-lg: 30px;
+  --radius-md: 24px;
+  --font-body: 'Manrope', 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+
+  font-family: var(--font-body);
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--page-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(201, 153, 33, 0.26), transparent 30%),
+    radial-gradient(circle at 88% 14%, rgba(31, 122, 98, 0.18), transparent 24%),
+    linear-gradient(180deg, #f8f2e5 0%, #eee1c8 100%);
+  color: var(--ink);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(16, 35, 28, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 35, 28, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, black 44%, transparent 88%);
+  pointer-events: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
