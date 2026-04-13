@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import type { User } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
 import { getDoc, setDoc } from "firebase/firestore";
-import { portfolioDocRef } from "./firebase";
+import { auth, portfolioDocRef } from "./firebase";
 import "./App.css";
 
 type CashEntry = {
@@ -33,6 +41,8 @@ type HoldingSummary = {
   note: string;
   value: number;
 };
+
+const allowedEmail = "engmohamedmahmoud1997@gmail.com";
 
 const defaultPortfolio: PortfolioFields = {
   usdAmount: "",
@@ -164,6 +174,26 @@ function formatSavedAt(value: string | null) {
   }
 
   return dateFormatter.format(new Date(value));
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getAuthErrorMessage(code: string | undefined) {
+  switch (code) {
+    case "auth/configuration-not-found":
+      return "Firebase Authentication is not initialized yet. Open Firebase Console, go to Authentication, click Get started, then enable Email/Password.";
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/invalid-credential":
+    case "auth/invalid-login-credentials":
+      return "The email or password is incorrect.";
+    case "auth/too-many-requests":
+      return "Too many login attempts. Wait a bit, then try again.";
+    default:
+      return "Could not sign in right now.";
+  }
 }
 
 function hasUnsavedChanges(draft: PortfolioFields, saved: PortfolioFields) {
@@ -335,6 +365,95 @@ function HoldingCard({ tone, title, hint, total, totalLabel, badge, delay, child
   );
 }
 
+type AuthScreenProps = {
+  email: string;
+  password: string;
+  error: string | null;
+  isSubmitting: boolean;
+  isAuthReady: boolean;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: () => void;
+};
+
+function AuthScreen({
+  email,
+  password,
+  error,
+  isSubmitting,
+  isAuthReady,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit,
+}: AuthScreenProps) {
+  return (
+    <div className="app-shell auth-shell">
+      <section className="auth-hero panel panel--transparent">
+        <div className="auth-hero__copy">
+          <p className="hero-copy__eyebrow">Private access</p>
+          <h1>Open the portfolio with the owner account only.</h1>
+          <p className="hero-copy__text">
+            This portfolio now uses Firebase sign-in before loading the Firestore snapshot. Only the configured owner
+            email is allowed to continue.
+          </p>
+
+          <div className="auth-hero__meta">
+            <span className="status-chip status-chip--saved">
+              {isAuthReady ? "Firebase client ready" : "Checking auth session"}
+            </span>
+            <span className="status-chip status-chip--neutral">Private owner access only</span>
+          </div>
+        </div>
+
+        <div className="auth-card">
+          <p className="panel-heading__eyebrow">Sign in</p>
+          <h2>Owner login</h2>
+          <p className="auth-card__text">Enter the private credentials to load and edit the shared portfolio.</p>
+
+          <div className="auth-form">
+            <label className="input-field">
+              <span>Email</span>
+              <div className="input-shell">
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                />
+              </div>
+            </label>
+
+            <label className="input-field">
+              <span>Password</span>
+              <div className="input-shell">
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      onSubmit();
+                    }
+                  }}
+                />
+              </div>
+            </label>
+
+            {error ? <div className="auth-error">{error}</div> : null}
+
+            <button type="button" className="button button--primary auth-submit" onClick={onSubmit} disabled={isSubmitting || !isAuthReady}>
+              {isSubmitting ? "Signing in..." : "Sign in"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 const initialSnapshot: PortfolioSnapshot = {
   values: defaultPortfolio,
   updatedAt: null,
@@ -344,6 +463,12 @@ function App() {
   const [savedSnapshot, setSavedSnapshot] = useState<PortfolioSnapshot>(initialSnapshot);
   const [draftValues, setDraftValues] = useState<PortfolioFields>(initialSnapshot.values);
   const [isEditing, setIsEditing] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authEmail, setAuthEmail] = useState(allowedEmail);
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -355,6 +480,38 @@ function App() {
   const totalHoldings = activePortfolio.total || 1;
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user && normalizeEmail(user.email ?? "") !== allowedEmail) {
+        void firebaseSignOut(auth);
+        setAuthUser(null);
+        setAuthError("This account is not allowed to access the portfolio.");
+        setIsAuthReady(true);
+        return;
+      }
+
+      setAuthUser(user);
+      setIsAuthReady(true);
+      if (user) {
+        setAuthError(null);
+      }
+
+      if (!user) {
+        setIsHydrating(false);
+        setSavedSnapshot(initialSnapshot);
+        setDraftValues(initialSnapshot.values);
+        setIsEditing(false);
+        setSyncError(null);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      return;
+    }
+
     let isCancelled = false;
 
     const hydratePortfolio = async () => {
@@ -399,7 +556,7 @@ function App() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [authUser]);
 
   const updateField = (field: keyof PortfolioFields, value: string) => {
     setDraftValues((current) => ({
@@ -489,9 +646,51 @@ function App() {
     void persistPortfolio();
   };
 
+  const handleSignIn = async () => {
+    const normalizedEmail = normalizeEmail(authEmail);
+
+    if (normalizedEmail !== allowedEmail) {
+      setAuthError("This account is not allowed to access the portfolio.");
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      await signInWithEmailAndPassword(auth, normalizedEmail, authPassword);
+      setAuthPassword("");
+    } catch (error) {
+      const authCode = typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined;
+      setAuthError(getAuthErrorMessage(authCode));
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await firebaseSignOut(auth);
+  };
+
   const largestHoldingShare = activePortfolio.largestHolding
     ? (activePortfolio.largestHolding.value / totalHoldings) * 100
     : 0;
+
+  if (!isAuthReady || !authUser) {
+    return (
+      <AuthScreen
+        email={authEmail}
+        password={authPassword}
+        error={authError}
+        isSubmitting={isSigningIn}
+        isAuthReady={isAuthReady}
+        onEmailChange={setAuthEmail}
+        onPasswordChange={setAuthPassword}
+        onSubmit={handleSignIn}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -524,6 +723,9 @@ function App() {
                 Edit portfolio
               </button>
             )}
+            <button type="button" className="button button--ghost" onClick={() => void handleSignOut()}>
+              Sign out
+            </button>
           </div>
 
           <div className="hero-copy__status">
@@ -533,6 +735,7 @@ function App() {
             <span className="status-chip status-chip--neutral">
               {isHydrating ? "Loading from Firestore" : "Synced with Cloud Firestore"}
             </span>
+            <span className="status-chip status-chip--saved">Authenticated session</span>
             {syncError ? <span className="status-chip status-chip--error">{syncError}</span> : null}
           </div>
         </section>

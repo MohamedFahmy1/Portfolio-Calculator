@@ -2,12 +2,12 @@ import { initializeApp } from "firebase/app";
 import { doc, getFirestore, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDgw1OEhDfw7WJvtnirGuUUmuRQ_q3vFNg",
-  authDomain: "portfolio-calculator-e5525.firebaseapp.com",
-  projectId: "portfolio-calculator-e5525",
-  storageBucket: "portfolio-calculator-e5525.firebasestorage.app",
-  messagingSenderId: "137176232706",
-  appId: "1:137176232706:web:40afd549ab35918bd4081b",
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.VITE_FIREBASE_APP_ID,
 };
 
 const portfolioSnapshot = {

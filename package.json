@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "seed:firestore": "node scripts/seed-firestore.mjs"
+    "seed:firestore": "node --env-file=.env scripts/seed-firestore.mjs"
   },
   "dependencies": {
     "firebase": "^12.12.0",
