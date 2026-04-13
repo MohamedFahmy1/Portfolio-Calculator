@@ -444,7 +444,11 @@ function AuthScreen({
 
             {error ? <div className="auth-error">{error}</div> : null}
 
-            <button type="button" className="button button--primary auth-submit" onClick={onSubmit} disabled={isSubmitting || !isAuthReady}>
+            <button
+              type="button"
+              className="button button--primary auth-submit"
+              onClick={onSubmit}
+              disabled={isSubmitting || !isAuthReady}>
               {isSubmitting ? "Signing in..." : "Sign in"}
             </button>
           </div>
@@ -465,7 +469,7 @@ function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [authEmail, setAuthEmail] = useState(allowedEmail);
+  const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
