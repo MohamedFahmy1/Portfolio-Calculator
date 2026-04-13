@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { getDoc, setDoc } from "firebase/firestore";
+import { portfolioDocRef } from "./firebase";
 import "./App.css";
 
 type CashEntry = {
@@ -31,8 +33,6 @@ type HoldingSummary = {
   note: string;
   value: number;
 };
-
-const STORAGE_KEY = "portfolio-calculator.snapshot.v1";
 
 const defaultPortfolio: PortfolioFields = {
   usdAmount: "",
@@ -133,37 +133,6 @@ function sanitizePortfolio(
     cashEntries,
     bankCertificates: sanitizeField(values?.bankCertificates),
   };
-}
-
-function loadSnapshot(): PortfolioSnapshot | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<PortfolioSnapshot>;
-
-    return {
-      values: sanitizePortfolio(parsed.values),
-      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function persistSnapshot(snapshot: PortfolioSnapshot) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 }
 
 function parseAmount(value: string) {
@@ -366,8 +335,7 @@ function HoldingCard({ tone, title, hint, total, totalLabel, badge, delay, child
   );
 }
 
-const persistedSnapshot = loadSnapshot();
-const initialSnapshot = persistedSnapshot ?? {
+const initialSnapshot: PortfolioSnapshot = {
   values: defaultPortfolio,
   updatedAt: null,
 };
@@ -375,13 +343,63 @@ const initialSnapshot = persistedSnapshot ?? {
 function App() {
   const [savedSnapshot, setSavedSnapshot] = useState<PortfolioSnapshot>(initialSnapshot);
   const [draftValues, setDraftValues] = useState<PortfolioFields>(initialSnapshot.values);
-  const [isEditing, setIsEditing] = useState(persistedSnapshot === null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isHydrating, setIsHydrating] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const activeValues = isEditing ? draftValues : savedSnapshot.values;
   const activePortfolio = calculatePortfolio(activeValues);
   const unsavedChanges = hasUnsavedChanges(draftValues, savedSnapshot.values);
   const totalValue = activePortfolio.total;
   const totalHoldings = activePortfolio.total || 1;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const hydratePortfolio = async () => {
+      setIsHydrating(true);
+      setSyncError(null);
+
+      try {
+        const snapshot = await getDoc(portfolioDocRef);
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (!snapshot.exists()) {
+          setSavedSnapshot(initialSnapshot);
+          setDraftValues(initialSnapshot.values);
+          setIsEditing(true);
+          return;
+        }
+
+        const remoteSnapshot = snapshot.data() as Partial<PortfolioSnapshot>;
+        const normalizedSnapshot: PortfolioSnapshot = {
+          values: sanitizePortfolio(remoteSnapshot.values),
+          updatedAt: typeof remoteSnapshot.updatedAt === "string" ? remoteSnapshot.updatedAt : null,
+        };
+
+        setSavedSnapshot(normalizedSnapshot);
+        setDraftValues(normalizedSnapshot.values);
+      } catch {
+        if (!isCancelled) {
+          setSyncError("Could not load the portfolio from Firestore.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsHydrating(false);
+        }
+      }
+    };
+
+    void hydratePortfolio();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const updateField = (field: keyof PortfolioFields, value: string) => {
     setDraftValues((current) => ({
@@ -452,10 +470,23 @@ function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    persistSnapshot(snapshot);
-    setSavedSnapshot(snapshot);
-    setDraftValues(snapshot.values);
-    setIsEditing(false);
+    const persistPortfolio = async () => {
+      setIsSaving(true);
+      setSyncError(null);
+
+      try {
+        await setDoc(portfolioDocRef, snapshot);
+        setSavedSnapshot(snapshot);
+        setDraftValues(snapshot.values);
+        setIsEditing(false);
+      } catch {
+        setSyncError("Could not save the portfolio to Firestore.");
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    void persistPortfolio();
   };
 
   const largestHoldingShare = activePortfolio.largestHolding
@@ -470,8 +501,8 @@ function App() {
           <h1>Read every asset through one EGP lens.</h1>
           <p className="hero-copy__text">
             Dollar and gold positions are converted live into Egyptian pounds, while stocks, cash entries, and bank
-            certificates stay as direct EGP inputs. Save a clean snapshot locally on this device and jump between view
-            and edit whenever you need to update the portfolio.
+            certificates stay as direct EGP inputs. The saved snapshot now lives in Firestore, so the same data is
+            available across browsers and on mobile.
           </p>
 
           <div className="hero-copy__actions">
@@ -484,12 +515,12 @@ function App() {
                   type="button"
                   className="button button--primary"
                   onClick={handleSave}
-                  disabled={!unsavedChanges}>
-                  Save snapshot
+                  disabled={!unsavedChanges || isSaving || isHydrating}>
+                  {isSaving ? "Saving..." : "Save snapshot"}
                 </button>
               </>
             ) : (
-              <button type="button" className="button button--primary" onClick={handleEdit}>
+              <button type="button" className="button button--primary" onClick={handleEdit} disabled={isHydrating}>
                 Edit portfolio
               </button>
             )}
@@ -499,7 +530,10 @@ function App() {
             <span className={`status-chip ${isEditing ? "status-chip--editing" : "status-chip--saved"}`}>
               {isEditing ? "Editing draft" : "Viewing saved snapshot"}
             </span>
-            <span className="status-chip status-chip--neutral">Stored only in local browser storage</span>
+            <span className="status-chip status-chip--neutral">
+              {isHydrating ? "Loading from Firestore" : "Synced with Cloud Firestore"}
+            </span>
+            {syncError ? <span className="status-chip status-chip--error">{syncError}</span> : null}
           </div>
         </section>
 

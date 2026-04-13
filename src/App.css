@@ -181,6 +181,11 @@
   background: rgba(255, 255, 255, 0.56);
 }
 
+.status-chip--error {
+  color: #7e2418;
+  background: rgba(207, 96, 71, 0.16);
+}
+
 .hero-summary {
   position: relative;
   overflow: hidden;
