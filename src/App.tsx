@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { User } from "firebase/auth";
 import {
   browserLocalPersistence,
+  getIdTokenResult,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -42,7 +43,7 @@ type HoldingSummary = {
   value: number;
 };
 
-const allowedEmail = "engmohamedmahmoud1997@gmail.com";
+const portfolioOwnerClaim = "portfolioOwner";
 
 const defaultPortfolio: PortfolioFields = {
   usdAmount: "",
@@ -252,7 +253,7 @@ function calculatePortfolio(values: PortfolioFields) {
 
   const sortedHoldings = [...holdings].sort((left, right) => right.value - left.value);
   const largestHolding = sortedHoldings.find((item) => item.value > 0) ?? null;
-  const liquidValue = roundAmount(dollarTotal + cash);
+  const liquidValue = roundAmount(cash + goldTotal + stocksValue);
   const defensiveValue = roundAmount(goldTotal + bankCertificates);
   const growthValue = roundAmount(stocksValue);
 
@@ -484,31 +485,74 @@ function App() {
   const totalHoldings = activePortfolio.total || 1;
 
   useEffect(() => {
+    let isDisposed = false;
+
+    const resetPortfolioState = () => {
+      setIsHydrating(false);
+      setSavedSnapshot(initialSnapshot);
+      setDraftValues(initialSnapshot.values);
+      setIsEditing(false);
+      setSyncError(null);
+    };
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && normalizeEmail(user.email ?? "") !== allowedEmail) {
-        void firebaseSignOut(auth);
-        setAuthUser(null);
-        setAuthError("This account is not allowed to access the portfolio.");
-        setIsAuthReady(true);
-        return;
-      }
+      const verifyPortfolioAccess = async () => {
+        if (!user) {
+          if (isDisposed) {
+            return;
+          }
 
-      setAuthUser(user);
-      setIsAuthReady(true);
-      if (user) {
-        setAuthError(null);
-      }
+          setAuthUser(null);
+          setIsAuthReady(true);
+          resetPortfolioState();
+          return;
+        }
 
-      if (!user) {
-        setIsHydrating(false);
-        setSavedSnapshot(initialSnapshot);
-        setDraftValues(initialSnapshot.values);
-        setIsEditing(false);
-        setSyncError(null);
-      }
+        try {
+          const tokenResult = await getIdTokenResult(user, true);
+
+          if (isDisposed) {
+            return;
+          }
+
+          if (tokenResult.claims[portfolioOwnerClaim] !== true) {
+            await firebaseSignOut(auth);
+
+            if (isDisposed) {
+              return;
+            }
+
+            setAuthUser(null);
+            setAuthError("This account is not allowed to access the portfolio.");
+            setIsAuthReady(true);
+            resetPortfolioState();
+            return;
+          }
+
+          setAuthUser(user);
+          setAuthError(null);
+          setIsAuthReady(true);
+        } catch {
+          await firebaseSignOut(auth).catch(() => undefined);
+
+          if (isDisposed) {
+            return;
+          }
+
+          setAuthUser(null);
+          setAuthError("Could not verify portfolio access right now.");
+          setIsAuthReady(true);
+          resetPortfolioState();
+        }
+      };
+
+      void verifyPortfolioAccess();
     });
 
-    return unsubscribe;
+    return () => {
+      isDisposed = true;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -653,8 +697,8 @@ function App() {
   const handleSignIn = async () => {
     const normalizedEmail = normalizeEmail(authEmail);
 
-    if (normalizedEmail !== allowedEmail) {
-      setAuthError("This account is not allowed to access the portfolio.");
+    if (!normalizedEmail) {
+      setAuthError("Enter a valid email address.");
       return;
     }
 
@@ -1068,7 +1112,7 @@ function App() {
               <article className="signal-card">
                 <span>Liquid position</span>
                 <strong>{formatCurrency(activePortfolio.liquidValue)}</strong>
-                <p>Cash plus converted dollar exposure.</p>
+                <p>Cash on hand, gold, and stocks only.</p>
               </article>
 
               <article className="signal-card">
