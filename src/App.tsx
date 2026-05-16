@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import type { User } from "firebase/auth";
 import {
   browserLocalPersistence,
-  getIdTokenResult,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -43,7 +42,7 @@ type HoldingSummary = {
   value: number;
 };
 
-const portfolioOwnerClaim = "portfolioOwner";
+const allowedEmail = "engmohamedmahmoud1997@gmail.com";
 
 const defaultPortfolio: PortfolioFields = {
   usdAmount: "",
@@ -485,74 +484,31 @@ function App() {
   const totalHoldings = activePortfolio.total || 1;
 
   useEffect(() => {
-    let isDisposed = false;
-
-    const resetPortfolioState = () => {
-      setIsHydrating(false);
-      setSavedSnapshot(initialSnapshot);
-      setDraftValues(initialSnapshot.values);
-      setIsEditing(false);
-      setSyncError(null);
-    };
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const verifyPortfolioAccess = async () => {
-        if (!user) {
-          if (isDisposed) {
-            return;
-          }
+      if (user && normalizeEmail(user.email ?? "") !== allowedEmail) {
+        void firebaseSignOut(auth);
+        setAuthUser(null);
+        setAuthError("This account is not allowed to access the portfolio.");
+        setIsAuthReady(true);
+        return;
+      }
 
-          setAuthUser(null);
-          setIsAuthReady(true);
-          resetPortfolioState();
-          return;
-        }
+      setAuthUser(user);
+      setIsAuthReady(true);
+      if (user) {
+        setAuthError(null);
+      }
 
-        try {
-          const tokenResult = await getIdTokenResult(user, true);
-
-          if (isDisposed) {
-            return;
-          }
-
-          if (tokenResult.claims[portfolioOwnerClaim] !== true) {
-            await firebaseSignOut(auth);
-
-            if (isDisposed) {
-              return;
-            }
-
-            setAuthUser(null);
-            setAuthError("This account is not allowed to access the portfolio.");
-            setIsAuthReady(true);
-            resetPortfolioState();
-            return;
-          }
-
-          setAuthUser(user);
-          setAuthError(null);
-          setIsAuthReady(true);
-        } catch {
-          await firebaseSignOut(auth).catch(() => undefined);
-
-          if (isDisposed) {
-            return;
-          }
-
-          setAuthUser(null);
-          setAuthError("Could not verify portfolio access right now.");
-          setIsAuthReady(true);
-          resetPortfolioState();
-        }
-      };
-
-      void verifyPortfolioAccess();
+      if (!user) {
+        setIsHydrating(false);
+        setSavedSnapshot(initialSnapshot);
+        setDraftValues(initialSnapshot.values);
+        setIsEditing(false);
+        setSyncError(null);
+      }
     });
 
-    return () => {
-      isDisposed = true;
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -697,8 +653,8 @@ function App() {
   const handleSignIn = async () => {
     const normalizedEmail = normalizeEmail(authEmail);
 
-    if (!normalizedEmail) {
-      setAuthError("Enter a valid email address.");
+    if (normalizedEmail !== allowedEmail) {
+      setAuthError("This account is not allowed to access the portfolio.");
       return;
     }
 
